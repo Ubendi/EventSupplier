@@ -1,0 +1,5 @@
+- MQTT publishing
+- Dockerization
+- Postgres implementation
+- Config file for env variables
+- Position recording and loading 
