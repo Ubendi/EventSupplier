@@ -1,4 +1,4 @@
-from vlc.vlc_main import run_vlc_watcher
+from vlc_interface.vlc_main import run_vlc_watcher
 
 def main():
     run_vlc_watcher()

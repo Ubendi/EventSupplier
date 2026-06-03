@@ -1,5 +1,10 @@
+TO ADD:
 - MQTT publishing
-- Dockerization
+- Dockerization - DONE
 - Postgres implementation
-- Config file for env variables
-- Position recording and loading 
+- Config file for env variables - NOT NEEDED IN DOCKER
+
+
+TO FIX:
+ - Docker issue? VLC connection is lost, video stutters
+ 
