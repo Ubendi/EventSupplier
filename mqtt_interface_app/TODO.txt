@@ -1,10 +1,11 @@
-TO ADD:
-- MQTT publishing
-- Dockerization - DONE
-- Postgres implementation
-- Config file for env variables - NOT NEEDED IN DOCKER
-
+Ideas:
+- MQTT subscribing
+- Retry logic to publishing
+- Seprate position manager / storage module with Postgres
+- Implement real logging instead of print()
+- Mobile app to send and receive events
+- IBKR API??????????
+- Ncore API?????????
 
 TO FIX:
- - Docker issue? VLC connection is lost, video stutters
- 
+No media looping overflow

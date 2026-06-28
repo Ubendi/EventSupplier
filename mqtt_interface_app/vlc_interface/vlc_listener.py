@@ -14,6 +14,7 @@ class StatusResult:
 class VLCListener(VLCConnectionBase):
     def __init__(self, host, port, vlc_key):
         super().__init__(host, port, vlc_key)
+        
 
     def get_status(self) -> StatusResult:
         try:

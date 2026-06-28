@@ -14,7 +14,7 @@ class VLCEventBuilder:
             "time" : time.time()
         }
 
-    def select_subtitle_stream_id(self, language: str) -> dict[str, any]:
+    def select_subtitle_stream_action(self, language: str) -> dict[str, any]:
         subtitle_streams = self._get_streams("Subtitle", language)
         if not subtitle_streams:
             action = self.create_action("error", {"error_message" : f"No subtitle track found"})
@@ -23,7 +23,7 @@ class VLCEventBuilder:
             action = self.create_action("set_subtitle", {"id" : stream[0], "language" : language})
         return action
     
-    def select_audio_stream_id(self):
+    def select_audio_stream_action(self):
         audio_streams = self._get_streams("Audio")
         if not audio_streams:
             action = self.create_action("error", {"error_message" : f"No audio track found"})
@@ -41,12 +41,13 @@ class VLCEventBuilder:
             action = self.create_action("set_position", {"media_name" : media_name, "position" : pos*100})
         return action
     
-    def upsert_position(self, media_name, pos):
+    def upsert_position_action(self, media_name, pos):
         action = self.create_action("upsert_position", {"media_name" : media_name, "position" : pos})
         return action
-
-
-
+    
+    def create_error_action(self, error_message):
+        action = self.create_action("error", {"error_message" : error_message})
+        return action
 
     # Internal functions
     def _get_streams(self, type: str, language: str | None = "") -> list[tuple[str,dict]] | None:
