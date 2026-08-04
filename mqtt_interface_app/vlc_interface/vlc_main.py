@@ -16,9 +16,9 @@ def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_interface: 
     last_media: str = None
     last_error: str = None
 
-    def do_action(topic, action): # TO DO: add logging
+    async def do_action(topic, action): # TO DO: add logging
         vlc_result = emitter.send(action)
-        mqtt_result = mqtt_interface.publish_event(topic,vlc_result.message)
+        mqtt_result = await mqtt_interface.publish_event(topic,vlc_result.message)
         print(f"Message sent to {topic} with response: {mqtt_result.status}")
 
     while True:
@@ -45,17 +45,15 @@ def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_interface: 
                     last_error = status.error
             if last_media:
                 is_retrying = True
-            # else:
-            #     print(f"No media present")
-            #     continue
             if retry_count <= max_retries and is_retrying:
                 print(f"Error: {status.error}, retrying {retry_count} of {max_retries}...")
                 retry_count+=1
-            else:
+            elif retry_count > max_retries and is_retrying:
                 last_media = None
                 is_retrying = False
                 retry_count = 1
                 print(f"Retry limit ({max_retries}) reached, last media cleared - {status.error}")
+            else:
                 error_action = builder.create_error_action(status.error)
                 do_action("vlc_errors", error_action)  
         time.sleep(2)
