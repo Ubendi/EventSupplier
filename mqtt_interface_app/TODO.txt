@@ -1,4 +1,5 @@
 Ideas:
+- async implement
 - MQTT subscribing
 - Retry logic to publishing
 - Seprate position manager / storage module with Postgres

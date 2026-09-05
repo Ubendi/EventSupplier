@@ -5,7 +5,7 @@ from mqtt.mqtt_interface import MQTTInterface
 
 import time
 
-def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_interface: MQTTInterface):
+async def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_interface: MQTTInterface):
     listener = VLCListener(vlc_host, vlc_port, vlc_key)
     builder = VLCEventBuilder(listener)
     emitter = VLCEmitter(vlc_host, vlc_port, vlc_key, builder)
@@ -16,7 +16,7 @@ def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_interface: 
     last_media: str = None
     last_error: str = None
 
-    async def do_action(topic, action): # TO DO: add logging
+    async def execute_action(topic, action): # TO DO: add logging
         vlc_result = emitter.send(action)
         mqtt_result = await mqtt_interface.publish_event(topic,vlc_result.message)
         print(f"Message sent to {topic} with response: {mqtt_result.status}")
@@ -31,14 +31,14 @@ def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_interface: 
                 last_media = current_media
                 print(f"Loaded new media: {current_media}")
                 continue_from_action = builder.set_position_action(current_media)
-                do_action("vlc_update", continue_from_action)
+                execute_action("vlc_update", continue_from_action)
                 set_subtitle_action = builder.select_subtitle_stream_action("English")
-                do_action("vlc_update", set_subtitle_action)
+                execute_action("vlc_update", set_subtitle_action)
                 set_audio_action = builder.select_audio_stream_action()
-                do_action("vlc_update", set_audio_action)
+                execute_action("vlc_update", set_audio_action)
             else: # Not new media - insert/update position of media
                 upsert_positions_action = builder.upsert_position_action(current_media, payload["position"])
-                do_action("vlc_positions", upsert_positions_action)
+                execute_action("vlc_positions", upsert_positions_action)
             last_error = None
         else: # VLC not running / Connection error
             if status.error != last_error:
@@ -55,5 +55,5 @@ def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_interface: 
                 print(f"Retry limit ({max_retries}) reached, last media cleared - {status.error}")
             else:
                 error_action = builder.create_error_action(status.error)
-                do_action("vlc_errors", error_action)  
+                await execute_action("vlc_errors", error_action)  
         time.sleep(2)
