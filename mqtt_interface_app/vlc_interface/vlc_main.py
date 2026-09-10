@@ -31,14 +31,14 @@ async def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_inter
                 last_media = current_media
                 print(f"Loaded new media: {current_media}")
                 continue_from_action = builder.set_position_action(current_media)
-                execute_action("vlc_update", continue_from_action)
+                await execute_action("vlc_update", continue_from_action)
                 set_subtitle_action = builder.select_subtitle_stream_action("English")
-                execute_action("vlc_update", set_subtitle_action)
+                await execute_action("vlc_update", set_subtitle_action)
                 set_audio_action = builder.select_audio_stream_action()
-                execute_action("vlc_update", set_audio_action)
+                await execute_action("vlc_update", set_audio_action)
             else: # Not new media - insert/update position of media
                 upsert_positions_action = builder.upsert_position_action(current_media, payload["position"])
-                execute_action("vlc_positions", upsert_positions_action)
+                await execute_action("vlc_positions", upsert_positions_action)
             last_error = None
         else: # VLC not running / Connection error
             if status.error != last_error:
