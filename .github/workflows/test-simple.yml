@@ -32,4 +32,5 @@ jobs:
       - name: Run unit tests
         run: |
           cd mqtt_interface_app
-          pytest tests/test_vlc_main.py -v
+          export PYTHONPATH=.
+          python -m pytest tests/test_vlc_main.py -v -p no:warnings
