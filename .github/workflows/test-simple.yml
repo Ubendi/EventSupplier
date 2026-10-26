@@ -32,5 +32,4 @@ jobs:
       - name: Run unit tests
         run: |
           cd mqtt_interface_app
-          export PYTHONPATH=.
-          python -m pytest tests/test_vlc_main.py -v -p no:warnings
+          python -c "import sys; sys.path.insert(0, '.'); import pytest; pytest.main(['tests/test_vlc_main.py', '-v', '-p', 'no:warnings'])"
