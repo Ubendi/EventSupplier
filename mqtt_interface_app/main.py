@@ -3,6 +3,12 @@ from mqtt.mqtt_interface import MQTTInterface
 
 import os
 import asyncio
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 VLC_HOST = os.getenv("VLC_HOST", "http://localhost")
 VLC_PORT = int(os.getenv("VLC_PORT", 8080))
