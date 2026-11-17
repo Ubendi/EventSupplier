@@ -93,6 +93,9 @@ function restartPolling() {
     state.pollTimer = setInterval(refreshDashboard, state.watchIntervalMs);
   } else if (state.activeTab === "positions") {
     state.pollTimer = setInterval(loadPositions, 10000);
+  } else if (state.activeTab === "ncore") {
+    refreshNcoreStatus();
+    state.pollTimer = setInterval(refreshNcoreStatus, 10000);
   } else {
     state.pollTimer = null;
   }
@@ -258,6 +261,128 @@ async function onPositionAction(act, name) {
 }
 
 // ---------------------------------------------------------------------------
+// nCore
+// ---------------------------------------------------------------------------
+
+const NCORE_TYPES = [
+  ["all_own", "All categories"],
+  ["hd_hun", "HD (HU)"],
+  ["hd", "HD"],
+  ["sd_hun", "SD (HU)"],
+  ["sd", "SD"],
+  ["dvd_hun", "DVD (HU)"],
+  ["dvd", "DVD"],
+  ["hdser_hun", "Series HD (HU)"],
+  ["hdser", "Series HD"],
+  ["sdser_hun", "Series SD (HU)"],
+  ["sdser", "Series SD"],
+  ["mp3_hun", "MP3 (HU)"],
+  ["mp3", "MP3"],
+  ["lossless_hun", "Lossless (HU)"],
+  ["lossless", "Lossless"],
+  ["ebook_hun", "E-book (HU)"],
+  ["ebook", "E-book"],
+  ["game_iso", "Games ISO"],
+  ["game_rip", "Games RIP"],
+];
+
+async function refreshNcoreStatus() {
+  try {
+    const status = await api("/api/v1/ncore/status");
+    const badge = $("ncore-login-badge");
+    badge.textContent = status.logged_in ? "logged in" : status.configured ? "logged out" : "not configured";
+    badge.className = `badge ${status.logged_in ? "finished" : "new"}`;
+    $("btn-ncore-logout").hidden = !status.logged_in;
+    $("ncore-status-line").textContent =
+      `Download dir: ${status.download_dir} · password: ${status.password_source}`;
+    // Show the login form only when there is no way the session can recover on its own
+    $("ncore-login-form").hidden = status.password_source !== "none";
+  } catch (err) {
+    $("ncore-login-badge").textContent = "unavailable";
+    $("ncore-login-badge").className = "badge new";
+  }
+}
+
+async function ncoreLogin(event) {
+  event.preventDefault();
+  try {
+    const body = {
+      username: $("ncore-username").value.trim() || undefined,
+      password: $("ncore-password").value || undefined,
+    };
+    const result = await api("/api/v1/ncore/login", { method: "POST", body: JSON.stringify(body) });
+    toast(result.message || "Logged in");
+    $("ncore-password").value = "";
+    refreshNcoreStatus();
+  } catch (err) {
+    toast(`Login failed: ${err.message}`, true);
+  }
+}
+
+async function ncoreLogout() {
+  try {
+    await api("/api/v1/ncore/logout", { method: "POST" });
+    toast("Logged out from nCore");
+    refreshNcoreStatus();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function ncoreSearch(page) {
+  const pattern = $("ncore-pattern").value.trim();
+  if (!pattern) {
+    toast("Enter a search term first", true);
+    return;
+  }
+  const params = new URLSearchParams({
+    pattern,
+    type: $("ncore-type").value,
+    sort_by: $("ncore-sort").value,
+    page: page || 1,
+  });
+  const body = $("ncore-body");
+  body.innerHTML = '<tr><td colspan="6" class="muted">Searching...</td></tr>';
+  try {
+    const data = await api(`/api/v1/ncore/search?${params}`);
+    state.ncorePage = data.page;
+    if (data.torrents.length === 0) {
+      body.innerHTML = '<tr><td colspan="6" class="muted">No results</td></tr>';
+    } else {
+      body.innerHTML = data.torrents
+        .map(
+          (t) => `<tr>
+            <td class="name" title="${escapeHtml(t.url)}">${escapeHtml(t.title)}</td>
+            <td><span class="badge new">${escapeHtml(t.type)}</span></td>
+            <td>${escapeHtml(t.size)}</td>
+            <td>${escapeHtml(t.seed)}</td>
+            <td>${escapeHtml(t.leech)}</td>
+            <td class="actions"><button data-act="download" data-id="${escapeHtml(t.id)}">Add to qBittorrent</button></td>
+          </tr>`
+        )
+        .join("");
+    }
+    const pagination = $("ncore-pagination");
+    pagination.hidden = data.num_of_pages <= 1;
+    $("ncore-page-info").textContent = `page ${data.page} of ${data.num_of_pages}`;
+    $("ncore-prev").disabled = data.page <= 1;
+    $("ncore-next").disabled = data.page >= data.num_of_pages;
+  } catch (err) {
+    body.innerHTML = `<tr><td colspan="6" class="muted">Search failed</td></tr>`;
+    toast(`Search failed: ${err.message}`, true);
+  }
+}
+
+async function ncoreDownload(id) {
+  try {
+    const result = await api("/api/v1/ncore/download", { method: "POST", body: JSON.stringify({ id }) });
+    toast(result.message || "Downloaded");
+  } catch (err) {
+    toast(`Download failed: ${err.message}`, true);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Settings
 // ---------------------------------------------------------------------------
 
@@ -271,9 +396,12 @@ const SETTING_LABELS = {
   watch_interval: "Poll interval (s)",
   web_host: "Web bind host",
   web_port: "Web port",
+  ncore_username: "nCore username",
+  ncore_download_dir: "nCore download folder",
 };
 
-const HIDDEN_SETTINGS = new Set([]); // extend to hide fields from the UI
+// Managed elsewhere: nCore password comes from the env file or the nCore tab
+const HIDDEN_SETTINGS = new Set(["ncore_password", "qbt_username", "qbt_password"]);
 
 async function loadSettingsForm() {
   try {
@@ -285,7 +413,6 @@ async function loadSettingsForm() {
       .filter(([key]) => !HIDDEN_SETTINGS.has(key))
       .map(([key, value]) => {
         const needsRestart = data.restart_required_keys.includes(key);
-        const type = typeof value === "number" ? "number" : "text";
         const step = typeof value === "number" && !Number.isInteger(value) ? "0.1" : "1";
         return `<div class="field">
           <label for="set-${key}">${SETTING_LABELS[key] || key}${needsRestart ? '<span class="star"> *</span>' : ""}</label>
@@ -383,6 +510,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   $("settings-form").addEventListener("submit", saveSettings);
+
+  // nCore tab
+  const typeSelect = $("ncore-type");
+  for (const [value, label] of NCORE_TYPES) {
+    typeSelect.insertAdjacentHTML("beforeend", `<option value="${value}">${label}</option>`);
+  }
+  $("ncore-search-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    ncoreSearch(1);
+  });
+  $("ncore-prev").addEventListener("click", () => ncoreSearch(Math.max(1, (state.ncorePage || 1) - 1)));
+  $("ncore-next").addEventListener("click", () => ncoreSearch((state.ncorePage || 1) + 1));
+  $("ncore-table").addEventListener("click", (e) => {
+    const btn = e.target.closest('button[data-act="download"]');
+    if (btn) {
+      btn.disabled = true;
+      ncoreDownload(btn.dataset.id);
+    }
+  });
+  $("ncore-login-form").addEventListener("submit", ncoreLogin);
+  $("btn-ncore-logout").addEventListener("click", ncoreLogout);
 
   await initPollInterval();
 });

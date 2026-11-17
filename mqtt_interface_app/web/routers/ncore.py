@@ -7,6 +7,9 @@ from pydantic import BaseModel, Field
 
 from ncore_interface.ncore_service import (
     NcoreNotConfigured,
+    QbittorrentAuthenticationError,
+    QbittorrentError,
+    QbittorrentNotConfigured,
     NcoreService,
 )
 from ncoreparser.error import (
@@ -37,6 +40,12 @@ def _service(request: Request) -> NcoreService:
 def _error_response(ex: Exception):
     if isinstance(ex, NcoreNotConfigured):
         return JSONResponse(status_code=400, content={"detail": str(ex)})
+    if isinstance(ex, QbittorrentNotConfigured):
+        return JSONResponse(status_code=503, content={"detail": str(ex)})
+    if isinstance(ex, QbittorrentAuthenticationError):
+        return JSONResponse(status_code=401, content={"detail": str(ex)})
+    if isinstance(ex, QbittorrentError):
+        return JSONResponse(status_code=502, content={"detail": str(ex)})
     if isinstance(ex, NcoreCredentialError):
         return JSONResponse(status_code=401, content={"detail": str(ex)})
     if isinstance(ex, NcoreConnectionError):

@@ -44,7 +44,12 @@ class FakeTorrent:
 
 def make_client(tmp_path, monkeypatch=None, **setting_overrides):
     settings_store = SettingsStore(settings_file=tmp_path / "settings.json")
-    settings_store.update({"ncore_username": "user", "ncore_password": "pass"})
+    settings_store.update({
+        "ncore_username": "user",
+        "ncore_password": "pass",
+        "qbt_username": "qbt-user",
+        "qbt_password": "qbt-pass",
+    })
     if setting_overrides:
         settings_store.update(setting_overrides)
 
@@ -80,13 +85,21 @@ class TestNcoreSettings:
         assert "ncore_username" in settings
         assert "ncore_password" in settings
         assert "ncore_download_dir" in settings
+        assert "qbt_username" in settings
+        assert "qbt_password" in settings
 
     def test_password_is_masked(self, tmp_path):
         store = SettingsStore(settings_file=tmp_path / "settings.json")
         store.update({"ncore_username": "user", "ncore_password": "sekret"})
         masked = store.masked()
         assert masked["ncore_password"] == "*" * 8
+        store.update({"qbt_username": "qbt-user", "qbt_password": "qbt-secret"})
+        masked = store.masked()
+        assert masked["qbt_username"] == "*" * 8
+        assert masked["qbt_password"] == "*" * 8
         assert "ncore_password" in SECRET_KEYS
+        assert "qbt_username" in SECRET_KEYS
+        assert "qbt_password" in SECRET_KEYS
 
     def test_env_override(self, monkeypatch, tmp_path):
         monkeypatch.setenv("NCORE_USERNAME", "envuser")
@@ -94,6 +107,77 @@ class TestNcoreSettings:
         store = SettingsStore(settings_file=tmp_path / "settings.json")
         assert store.get("ncore_username") == "envuser"
         assert store.get("ncore_password") == "envpass"
+
+    def test_env_file_used_when_process_env_unset(self, monkeypatch, tmp_path):
+        env_file = tmp_path / "pc.env"
+        env_file.write_text(
+            "NCORE_USERNAME=fileuser\r\nNCORE_PASSWORD=filepass\r\n"
+            "QBT_USERNAME=qbtfileuser\r\nQBT_PASSWORD=qbtfilepass\r\n\r\n"
+            "# comment\r\nNCORE_DOWNLOAD_DIR=missing line no fix"
+        )
+        monkeypatch.setenv("ENV_FILE", str(env_file))
+        monkeypatch.delenv("NCORE_USERNAME", raising=False)
+        monkeypatch.delenv("NCORE_PASSWORD", raising=False)
+        monkeypatch.delenv("QBT_USERNAME", raising=False)
+        monkeypatch.delenv("QBT_PASSWORD", raising=False)
+        store = SettingsStore(settings_file=tmp_path / "settings.json")
+        assert store.get("ncore_username") == "fileuser"
+        assert store.get("ncore_password") == "filepass"
+        assert store.get("qbt_username") == "qbtfileuser"
+        assert store.get("qbt_password") == "qbtfilepass"
+
+    def test_process_env_beats_env_file(self, monkeypatch, tmp_path):
+        env_file = tmp_path / "pc.env"
+        env_file.write_text("NCORE_USERNAME=fileuser\r\n")
+        monkeypatch.setenv("ENV_FILE", str(env_file))
+        monkeypatch.setenv("NCORE_USERNAME", "processuser")
+        store = SettingsStore(settings_file=tmp_path / "settings.json")
+        assert store.get("ncore_username") == "processuser"
+
+    def test_secrets_never_persisted_to_disk(self, tmp_path):
+        store = SettingsStore(settings_file=tmp_path / "settings.json")
+        store.update({
+            "vlc_key": "vlcsekret",
+            "ncore_password": "ncoresekret",
+            "qbt_username": "qbtuser",
+            "qbt_password": "qbtsekret",
+            "ncore_username": "user",
+            "web_port": 9090,
+        })
+        raw = (tmp_path / "settings.json").read_text()
+        assert "vlcsekret" not in raw
+        assert "ncoresekret" not in raw
+        assert "qbtuser" not in raw
+        assert "qbtsekret" not in raw
+        assert "user" in raw  # non-secret values still persist
+        # In-memory values still work
+        assert store.get("vlc_key") == "vlcsekret"
+        assert store.get("ncore_password") == "ncoresekret"
+        assert store.get("qbt_username") == "qbtuser"
+        assert store.get("qbt_password") == "qbtsekret"
+        # And a reload from disk does not resurrect the secret
+        reloaded = SettingsStore(settings_file=tmp_path / "settings.json")
+        assert reloaded.get("ncore_password") == ""
+        assert reloaded.get("qbt_username") == ""
+        assert reloaded.get("qbt_password") == ""
+        assert reloaded.get("web_port") == 9090
+
+    def test_session_password_not_persisted(self, tmp_path, patched_async_client):
+        client, service, store = make_client(tmp_path)
+        service._client = patched_async_client
+        service._logged_in = True
+        patched_async_client.login = AsyncMock(return_value={})
+        result = client.post("/api/v1/ncore/login", json={"username": "u2", "password": "memsecret"})
+        assert result.status_code == 200
+        assert service._credentials()[1] == "memsecret"
+        assert store.get("ncore_password") == "pass"  # unchanged
+        assert "memsecret" not in (tmp_path / "settings.json").read_text()
+
+    def test_status_reports_password_source(self, tmp_path):
+        client, service, _ = make_client(tmp_path)
+        assert client.get("/api/v1/ncore/status").json()["password_source"] == "env"
+        service._session_password = "abc"
+        assert client.get("/api/v1/ncore/status").json()["password_source"] == "session"
 
 
 # ============================================================================
@@ -133,7 +217,11 @@ class TestNcoreService:
         result = client.get("/api/v1/ncore/search?pattern=")
         assert result.status_code == 422
 
-    def test_download_writes_torrent_file(self, tmp_path, patched_async_client):
+    def test_download_writes_torrent_file(self, tmp_path, patched_async_client, monkeypatch):
+        monkeypatch.setattr(
+            "ncore_interface.ncore_service.add_torrent_to_qbittorrent",
+            AsyncMock(),
+        )
         download_dir = tmp_path / "torrents"
         client, service, store = make_client(tmp_path, ncore_download_dir=str(download_dir))
         service._client = patched_async_client
@@ -149,9 +237,15 @@ class TestNcoreService:
         assert result.status_code == 200
         body = result.json()
         assert body["download_dir"] == str(download_dir)
+        assert body["added_to_qbittorrent"] is True
+        assert "added to qBittorrent" in body["message"]
         patched_async_client.download.assert_awaited_once()
 
-    def test_download_creates_dir(self, tmp_path, patched_async_client):
+    def test_download_creates_dir(self, tmp_path, patched_async_client, monkeypatch):
+        monkeypatch.setattr(
+            "ncore_interface.ncore_service.add_torrent_to_qbittorrent",
+            AsyncMock(),
+        )
         download_dir = tmp_path / "nested" / "torrents"
         client, service, _ = make_client(tmp_path, ncore_download_dir=str(download_dir))
         service._client = patched_async_client
@@ -162,6 +256,90 @@ class TestNcoreService:
         result = client.post("/api/v1/ncore/download", json={"id": "1"})
         assert result.status_code == 200
         assert download_dir.exists()
+
+    def test_download_adds_file_to_qbittorrent(self, tmp_path, patched_async_client, monkeypatch):
+        uploaded = []
+
+        async def fake_add(path, username, password):
+            uploaded.append((path, username, password))
+
+        monkeypatch.setattr("ncore_interface.ncore_service.add_torrent_to_qbittorrent", fake_add)
+        download_dir = tmp_path / "torrents"
+        client, service, _ = make_client(tmp_path, ncore_download_dir=str(download_dir))
+        service._client = patched_async_client
+        service._logged_in = True
+        patched_async_client.get_torrent = AsyncMock(return_value=FakeTorrent("555"))
+        async def fake_download(t, path, override=False):
+            return str(Path(path) / "fake.torrent")
+        patched_async_client.download = AsyncMock(side_effect=fake_download)
+
+        result = client.post("/api/v1/ncore/download", json={"id": "555"})
+        assert result.status_code == 200
+        body = result.json()
+        assert body["added_to_qbittorrent"] is True
+        assert len(uploaded) == 1
+        assert uploaded[0] == (str(download_dir / "fake.torrent"), "qbt-user", "qbt-pass")
+
+    def test_download_without_qbittorrent_credentials_returns_503(self, tmp_path):
+        client, _, store = make_client(tmp_path)
+        store.update({"qbt_username": "", "qbt_password": ""})
+        result = client.post("/api/v1/ncore/download", json={"id": "1"})
+        assert result.status_code == 503
+        assert "QBT_USERNAME and QBT_PASSWORD" in result.json()["detail"]
+
+    def test_qbittorrent_upload_uses_web_api(self, tmp_path, monkeypatch):
+        import asyncio
+        import httpx
+        from ncore_interface import ncore_service as mod
+
+        torrent_path = tmp_path / "sample.torrent"
+        torrent_path.write_bytes(b"torrent-content")
+        requests = []
+
+        def respond(request):
+            requests.append(request)
+            if request.url.path == "/api/v2/auth/login":
+                assert b"username=qbt-user" in request.content
+                assert b"password=qbt-pass" in request.content
+                return httpx.Response(204)
+            assert request.url.path == "/api/v2/torrents/add"
+            assert b'filename="sample.torrent"' in request.content
+            assert b"torrent-content" in request.content
+            return httpx.Response(200, text="")
+
+        original_client = httpx.AsyncClient
+        transport = httpx.MockTransport(respond)
+        monkeypatch.setattr(
+            mod.httpx,
+            "AsyncClient",
+            lambda **kwargs: original_client(transport=transport, **kwargs),
+        )
+        asyncio.run(mod.add_torrent_to_qbittorrent(str(torrent_path), "qbt-user", "qbt-pass"))
+        assert [request.url.path for request in requests] == [
+            "/api/v2/auth/login",
+            "/api/v2/torrents/add",
+        ]
+
+    def test_qbittorrent_rejects_bad_credentials(self, tmp_path, monkeypatch):
+        import asyncio
+        import httpx
+        from ncore_interface import ncore_service as mod
+
+        torrent_path = tmp_path / "sample.torrent"
+        torrent_path.write_bytes(b"torrent-content")
+        original_client = httpx.AsyncClient
+        monkeypatch.setattr(
+            mod.httpx,
+            "AsyncClient",
+            lambda **kwargs: original_client(
+                transport=httpx.MockTransport(
+                    lambda request: httpx.Response(200, text="Fails.")
+                ),
+                **kwargs,
+            ),
+        )
+        with pytest.raises(mod.QbittorrentAuthenticationError):
+            asyncio.run(mod.add_torrent_to_qbittorrent(str(torrent_path), "bad", "bad"))
 
     def test_credential_error_maps_to_401(self, tmp_path, patched_async_client):
         client, service, _ = make_client(tmp_path)

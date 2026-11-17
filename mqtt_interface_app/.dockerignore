@@ -1,1 +1,4 @@
 vlc_interface/positions.json
+# Never bake local env files / data into the image
+env/
+data/

@@ -11,6 +11,7 @@ from web.app import create_app
 from web.state import AppState
 from web.app_settings import SettingsStore
 from vlc_interface import positions_manager
+from ncore_interface.ncore_service import NcoreService
 
 tmp = Path(tempfile.mkdtemp())
 monkey_positions_file = tmp / "positions.json"
@@ -19,6 +20,7 @@ positions_manager._save_positions({})
 
 settings_store = SettingsStore(settings_file=tmp / "settings.json")
 app_state = AppState()
+ncore_service = NcoreService(settings_store)
 
 listener = MagicMock()
 listener.get_status.return_value = MagicMock(
@@ -31,7 +33,7 @@ listener.get_status.return_value = MagicMock(
 emitter = MagicMock()
 emitter.send.return_value = MagicMock(status="ok", message="simulated", error=None)
 
-client = TestClient(create_app(app_state, settings_store, listener, emitter))
+client = TestClient(create_app(app_state, settings_store, listener, emitter, ncore_service=ncore_service))
 
 checks = []
 
@@ -77,6 +79,17 @@ check("port range rejected", r.status_code == 422)
 
 r = client.delete("/api/v1/positions/demo.mkv")
 check("delete position", r.status_code == 200)
+
+r = client.get("/api/v1/ncore/status")
+check("ncore status 200", r.status_code == 200)
+check("ncore not configured in smoke", r.json()["configured"] is False)
+check("ncore download dir present", bool(r.json()["download_dir"]))
+r = client.get("/api/v1/ncore/search?pattern=x")
+check("ncore unconfigured search 400", r.status_code == 400)
+r = client.get("/")
+check("ncore tab in html", b"data-tab=\"ncore\"" in r.content)
+r = client.get("/js/app.js")
+check("ncore js present", b"ncoreSearch" in r.content)
 
 failed = [c for c in checks if not c[1]]
 for name, ok in checks:

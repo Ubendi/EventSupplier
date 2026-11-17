@@ -221,3 +221,18 @@ td.actions button { padding: 4px 8px; font-size: 12px; margin-right: 4px; }
 }
 .toast.error { border-color: var(--danger); }
 .toast.hidden { opacity: 0; pointer-events: none; }
+
+/* nCore */
+.ncore-auth { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.ncore-auth .field { display: flex; flex-direction: column; gap: 4px; }
+.ncore-auth .field label { color: var(--text-muted); font-size: 13px; }
+.ncore-auth .muted { flex-basis: 100%; margin-top: 4px; }
+
+.pagination {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+}
+.pagination button { padding: 4px 10px; font-size: 13px; }
+.pagination button:disabled { opacity: 0.4; cursor: default; }

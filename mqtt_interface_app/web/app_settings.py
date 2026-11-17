@@ -30,6 +30,8 @@ SETTING_TYPES = {
     "ncore_username": str,
     "ncore_password": str,
     "ncore_download_dir": str,
+    "qbt_username": str,
+    "qbt_password": str,
 }
 
 DEFAULTS = {
@@ -44,6 +46,8 @@ DEFAULTS = {
     "ncore_username": "",
     "ncore_password": "",
     "ncore_download_dir": str(APP_ROOT / "data" / "torrents"),
+    "qbt_username": "",
+    "qbt_password": "",
 }
 
 # Env var -> settings key
@@ -55,9 +59,11 @@ ENV_MAP = {
     "MQTT_PORT": "mqtt_port",
     "NCORE_USERNAME": "ncore_username",
     "NCORE_PASSWORD": "ncore_password",
+    "QBT_USERNAME": "qbt_username",
+    "QBT_PASSWORD": "qbt_password",
 }
 
-SECRET_KEYS = {"vlc_key", "ncore_password"}
+SECRET_KEYS = {"vlc_key", "ncore_password", "qbt_username", "qbt_password"}
 
 # Changing these needs the watcher (or web server) to reconnect
 RESTART_REQUIRED_KEYS = {"vlc_host", "vlc_port", "vlc_key", "mqtt_host", "mqtt_port", "web_host", "web_port"}
@@ -82,9 +88,31 @@ class SettingsStore:
         self._apply_env_overrides()
         self._load_overrides()
 
+    def _load_env_file(self) -> dict:
+        """Optional ENV_FILE setting for direct (non-Docker) runs: a dotenv
+        file whose values apply where process env vars are unset."""
+        path = os.getenv("ENV_FILE")
+        if not path:
+            return {}
+        values = {}
+        try:
+            with open(path, encoding="utf-8-sig") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, _, value = line.partition("=")
+                    values[key.strip()] = value.strip()
+        except OSError:
+            pass
+        return values
+
     def _apply_env_overrides(self):
+        file_values = self._load_env_file()
         for env_key, settings_key in ENV_MAP.items():
             raw = os.getenv(env_key)
+            if raw is None:
+                raw = file_values.get(env_key)
             if raw is not None and settings_key in SETTING_TYPES:
                 try:
                     self._settings[settings_key] = _coerce(settings_key, raw)
@@ -156,6 +184,9 @@ class SettingsStore:
         return data
 
     def _save(self):
+        # Secrets are never persisted: they come from env vars (Docker/env
+        # file) or from in-memory state set via the API for the current run.
+        persistable = {k: v for k, v in self._settings.items() if k not in SECRET_KEYS}
         self.settings_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.settings_file, "w") as f:
-            json.dump(self._settings, f, indent=4)
+            json.dump(persistable, f, indent=4)

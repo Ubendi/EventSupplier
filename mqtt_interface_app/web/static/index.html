@@ -12,6 +12,7 @@
     <nav class="tabs">
       <button class="tab active" data-tab="dashboard">Dashboard</button>
       <button class="tab" data-tab="positions">Positions</button>
+      <button class="tab" data-tab="ncore">nCore</button>
       <button class="tab" data-tab="settings">Settings</button>
     </nav>
     <div class="health" id="health-indicator" title="API reachability">
@@ -107,6 +108,72 @@
             </tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- nCore -->
+    <section id="tab-ncore" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <h2>nCore tracker</h2>
+          <div class="toggles">
+            <span class="badge" id="ncore-login-badge">-</span>
+            <button id="btn-ncore-logout" class="danger" hidden>Logout</button>
+          </div>
+        </div>
+        <p class="muted" id="ncore-status-line">-</p>
+
+        <form id="ncore-login-form" class="ncore-auth" hidden>
+          <div class="field">
+            <label for="ncore-username">Username</label>
+            <input type="text" id="ncore-username" autocomplete="username">
+          </div>
+          <div class="field">
+            <label for="ncore-password">Password</label>
+            <input type="password" id="ncore-password" autocomplete="current-password">
+          </div>
+          <button type="submit">Log in</button>
+          <p class="muted">Session password only: it is kept in memory for this run. For automatic login set NCORE_USERNAME / NCORE_PASSWORD in the env file.</p>
+        </form>
+      </div>
+
+      <div class="card">
+        <form id="ncore-search-form" class="toolbar">
+          <input type="search" id="ncore-pattern" placeholder="Search torrents...">
+          <select id="ncore-type"></select>
+          <select id="ncore-sort">
+            <option value="upload">Newest</option>
+            <option value="name">Name</option>
+            <option value="size">Size</option>
+            <option value="seeders">Seeders</option>
+            <option value="leechers">Leechers</option>
+            <option value="times_completed">Downloads</option>
+          </select>
+          <button type="submit">Search</button>
+        </form>
+        <div class="table-wrap">
+          <table id="ncore-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Seed</th>
+                <th>Leech</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="ncore-body">
+              <tr><td colspan="6" class="muted">Enter a search term above</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination" id="ncore-pagination" hidden>
+          <button id="ncore-prev">&larr; Prev</button>
+          <span class="muted" id="ncore-page-info">-</span>
+          <button id="ncore-next">Next &rarr;</button>
+        </div>
+        <p class="muted" id="ncore-download-dir">Downloaded torrents are added to qBittorrent Web UI on port 8085.</p>
       </div>
     </section>
 
