@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from web.state import AppState
 from web.app_settings import SettingsStore
-from web.routers import status, vlc, positions, settings, events
+from web.routers import status, vlc, positions, settings, events, ncore
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -33,6 +33,7 @@ def create_app(
     app.include_router(positions.router)
     app.include_router(settings.router)
     app.include_router(events.router)
+    app.include_router(ncore.router)
 
     @app.get("/api/v1/health")
     async def health():

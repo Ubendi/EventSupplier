@@ -27,6 +27,9 @@ SETTING_TYPES = {
     "watch_interval": float,
     "web_host": str,
     "web_port": int,
+    "ncore_username": str,
+    "ncore_password": str,
+    "ncore_download_dir": str,
 }
 
 DEFAULTS = {
@@ -38,6 +41,9 @@ DEFAULTS = {
     "subtitle_language": "English",    "watch_interval": 2.0,
     "web_host": "0.0.0.0",
     "web_port": 8081,
+    "ncore_username": "",
+    "ncore_password": "",
+    "ncore_download_dir": str(APP_ROOT / "data" / "torrents"),
 }
 
 # Env var -> settings key
@@ -47,9 +53,11 @@ ENV_MAP = {
     "VLC_KEY": "vlc_key",
     "MQTT_HOST": "mqtt_host",
     "MQTT_PORT": "mqtt_port",
+    "NCORE_USERNAME": "ncore_username",
+    "NCORE_PASSWORD": "ncore_password",
 }
 
-SECRET_KEYS = {"vlc_key"}
+SECRET_KEYS = {"vlc_key", "ncore_password"}
 
 # Changing these needs the watcher (or web server) to reconnect
 RESTART_REQUIRED_KEYS = {"vlc_host", "vlc_port", "vlc_key", "mqtt_host", "mqtt_port", "web_host", "web_port"}

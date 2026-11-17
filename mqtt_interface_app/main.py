@@ -34,8 +34,13 @@ async def main():
     vlc_listener = VLCListener(vlc_host, vlc_port, vlc_key)
     vlc_emitter = VLCEmitter(vlc_host, vlc_port, vlc_key, None)
 
+    # nCore tracker session (ncoreparser); credentials/settings-editable at
+    # runtime, no restart required
+    from ncore_interface.ncore_service import NcoreService
+    ncore_service = NcoreService(settings_store)
+
     app_state = AppState()
-    app = create_app(app_state, settings_store, vlc_listener, vlc_emitter)
+    app = create_app(app_state, settings_store, vlc_listener, vlc_emitter, ncore_service=ncore_service)
 
     web_host = settings["web_host"]
     web_port = settings["web_port"]
