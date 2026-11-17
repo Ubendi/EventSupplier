@@ -1,6 +1,6 @@
 import time
 from helper.string_utils import normalize
-from .positions_manager import get_position_of_media
+from .positions_manager import get_position_of_media, position_changed
 
 class VLCEventBuilder:
     def __init__(self, vlc_listener):
@@ -42,6 +42,10 @@ class VLCEventBuilder:
         return action
     
     def upsert_position_action(self, media_name, pos, length=None):
+        # Nothing changed (paused playback): no action, so the watcher
+        # doesn't re-publish, re-log, or re-feed the same position
+        if not position_changed(media_name, pos, length):
+            return None
         action = self.create_action("upsert_position", {"media_name" : media_name, "position" : pos, "length" : length})
         return action
     

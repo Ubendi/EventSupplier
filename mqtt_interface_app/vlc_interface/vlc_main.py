@@ -92,7 +92,10 @@ def process_ok_status(
         return current_media, actions
     else:
         # Existing media - just update position
-        actions.append(("vlc_positions", builder.upsert_position_action(current_media, payload["position"], payload.get("length"))))
+        action = builder.upsert_position_action(current_media, payload["position"], payload.get("length"))
+        if action:
+            # unchanged positions produce no action at all
+            actions.append(("vlc_positions", action))
         return last_media, actions
 
 
@@ -210,6 +213,11 @@ async def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_inter
                 for topic, action in actions:
                     await execute_action(topic, action, emitter, mqtt_interface, state)
                 last_error = None
+                # VLC responded, so any previous error episode is over - a
+                # stale counter here would exhaust retries on the very next
+                # transient blip and force an unnecessary media reload
+                retry_count = 1
+                is_retrying = False
 
             else:
                 # VLC not running or connection error - process error status

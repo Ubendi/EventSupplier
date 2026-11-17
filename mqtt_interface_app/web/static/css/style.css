@@ -81,6 +81,19 @@ main { padding: 20px; max-width: 1100px; margin: 0 auto; }
 }
 .card h2 { margin: 0 0 12px; font-size: 15px; color: var(--accent); }
 
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.card-header h2 { margin: 0; }
+
+.toggle { display: flex; align-items: center; gap: 6px; color: var(--text-muted); cursor: pointer; }
+.toggle input { width: auto; }
+
+.toggles { display: flex; gap: 16px; }
+
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; }
 .kv dt { color: var(--text-muted); }
 .kv dd { margin: 0; word-break: break-all; }
@@ -151,6 +164,10 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .event .topic { color: var(--accent); font-family: Consolas, monospace; min-width: 110px; }
 .event.warning .message { color: var(--warn); }
 .event.error .message, .event.error .topic { color: var(--danger); }
+
+.events.hide-errors .event.error { display: none; }
+
+.events.hide-positions .topic-vlc_positions { display: none; }
 
 .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
 .toolbar input { flex: 0 1 320px; }

@@ -38,7 +38,18 @@ def is_finished(position: float, length: float | None = None) -> bool:
         return remaining <= finished_window(length) + 1e-9
     return position >= FINISHED_THRESHOLD
 
+def position_changed(media_name: str, position: float, length: float | None = None) -> bool:
+    """True if the stored entry differs from what was (re)reported."""
+    entry = get_position_entry(media_name)
+    if entry is None:
+        return True
+    return not (entry.get("position") == position and entry.get("length") == length)
+
 def upsert_position(media_name: str, position: float, length: float | None = None) -> None:
+    # Skip the rewrite when nothing changed (paused playback re-reports the
+    # exact same fraction every poll)
+    if not position_changed(media_name, position, length):
+        return
     positions = _load_positions()
     positions[media_name] = {
         "datetime" : datetime.datetime.now().isoformat(),

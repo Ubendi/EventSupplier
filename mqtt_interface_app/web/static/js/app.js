@@ -157,7 +157,7 @@ async function refreshEvents() {
     for (const e of data.events.reverse()) {
       feed.insertAdjacentHTML(
         "beforeend",
-        `<div class="event ${e.level}">
+        `<div class="event ${e.level} topic-${escapeHtml(e.topic)}">
            <span class="time">${escapeHtml(fmtTime(e.time))}</span>
            <span class="topic">${escapeHtml(e.topic)}</span>
            <span class="message">${escapeHtml(e.message)}</span>
@@ -366,6 +366,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   $("positions-search").addEventListener("input", () => {
     clearTimeout($("positions-search")._timer);
     $("positions-search")._timer = setTimeout(loadPositions, 250);
+  });
+
+  $("hide-errors").addEventListener("change", (e) => {
+    $("event-feed").classList.toggle("hide-errors", e.target.checked);
+  });
+
+  $("hide-positions").addEventListener("change", (e) => {
+    $("event-feed").classList.toggle("hide-positions", e.target.checked);
   });
 
   // Event delegation: position table action buttons

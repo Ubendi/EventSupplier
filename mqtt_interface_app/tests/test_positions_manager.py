@@ -98,3 +98,22 @@ class TestGetPositionOfMedia:
         raw = json.loads(positions_file.read_text())
         assert raw["done.mkv"]["position"] == pytest.approx(0.95)
         assert raw["done.mkv"]["length"] == pytest.approx(7200)
+
+    def test_unchanged_position_skips_disk_write(self, positions_file):
+        positions_manager.upsert_position("pause.mkv", 0.5, length=600)
+        before = positions_file.read_bytes()
+        positions_manager.upsert_position("pause.mkv", 0.5, length=600)
+        assert positions_file.read_bytes() == before  # identical report = no write
+
+    def test_position_changed(self, positions_file):
+        assert positions_manager.position_changed("new.mkv", 0.1) is True  # unseen media
+        positions_manager.upsert_position("same.mkv", 0.5, length=600)
+        assert positions_manager.position_changed("same.mkv", 0.5, 600) is False
+        assert positions_manager.position_changed("same.mkv", 0.51, 600) is True
+        assert positions_manager.position_changed("same.mkv", 0.5, None) is True
+
+    def test_changed_position_still_writes(self, positions_file):
+        positions_manager.upsert_position("play.mkv", 0.5, length=600)
+        before = positions_file.read_bytes()
+        positions_manager.upsert_position("play.mkv", 0.51, length=600)
+        assert positions_file.read_bytes() != before
