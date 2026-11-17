@@ -38,12 +38,36 @@ class VLCEmitter(VLCConnectionBase):
                 case "upsert_position":
                     media_name = action["payload"]["media_name"]
                     position = action["payload"]["position"]
-                    self._upsert_postion(media_name, position)
+                    length = action["payload"].get("length")
+                    self._upsert_postion(media_name, position, length)
                     message = f"{media_name} new position: {position}"
+                case "play":
+                    self._play()
+                    message = "Playback started"
+                case "pause":
+                    self._pause()
+                    message = "Playback paused/resumed"
+                case "stop":
+                    self._stop()
+                    message = "Playback stopped"
+                case "set_volume":
+                    volume = action["payload"]["volume"]
+                    self._set_volume(volume)
+                    message = f"Volume set to {volume}%"
+                case "set_subtitle_id":
+                    id = action["payload"]["id"]
+                    self._set_subtitle_stream(id)
+                    message = f"Subtitle track {id} set"
+                case "set_audio_id":
+                    id = action["payload"]["id"]
+                    self._set_audio_stream(id)
+                    message = f"Audio track {id} set"
                 case "error":
                     message = action["payload"]["error_message"]
                 case "info":
                     message = action["payload"]["info_message"]
+                case _:
+                    return SendResult("error", "Action couldn't be processed", None, "unknown_action")
         return SendResult("ok", message, 200, None)
 
 
@@ -60,6 +84,24 @@ class VLCEmitter(VLCConnectionBase):
         request = f"{self.command_api_url}seek&val={position}%"
         requests.get(request, auth=self.vlc_auth)
 
+    def _play(self):
+        request = f"{self.command_api_url}pl_play"
+        requests.get(request, auth=self.vlc_auth)
+
+    def _pause(self):
+        request = f"{self.command_api_url}pl_pause"
+        requests.get(request, auth=self.vlc_auth)
+
+    def _stop(self):
+        request = f"{self.command_api_url}pl_stop"
+        requests.get(request, auth=self.vlc_auth)
+
+    # val is a percentage of max volume; bare values are treated by VLC as
+    # absolute on the 0-512 scale
+    def _set_volume(self, volume: int):
+        request = f"{self.command_api_url}volume&val={volume}%25"
+        requests.get(request, auth=self.vlc_auth)
+
     # IO methods
-    def _upsert_postion(self, media_name: str, position: float):
-        upsert_position(media_name, position)
+    def _upsert_postion(self, media_name: str, position: float, length: float | None = None):
+        upsert_position(media_name, position, length)

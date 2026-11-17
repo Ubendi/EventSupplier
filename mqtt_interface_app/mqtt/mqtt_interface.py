@@ -27,7 +27,7 @@ class MQTTInterface():
         for attempt in range(1, retries+1):
             try:
                 await asyncio.to_thread(self.client.publish,topic,payload)
-                result.status="ok",
+                result.status="ok"
                 result.message=f"Message published to {topic}: {payload}",
                 result.error=None
                 return result

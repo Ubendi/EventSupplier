@@ -7,4 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Web UI/API port
+EXPOSE 8081
+
 CMD ["python", "-u", "main.py"]

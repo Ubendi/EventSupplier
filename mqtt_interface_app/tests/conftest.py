@@ -65,7 +65,8 @@ def mock_status_ok():
                 "meta": {"filename": "test_movie.mp4"}
             }
         },
-        "position": 10.5
+        "position": 10.5,
+        "length": 7200
     }
     mock.error = None
     return mock
