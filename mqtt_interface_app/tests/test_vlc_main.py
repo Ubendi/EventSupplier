@@ -180,7 +180,7 @@ class TestProcessOkStatus:
         assert actions[0][0] == "vlc_positions"
         
         # Builder should only be called for position update
-        mock_builder.upsert_position_action.assert_called_once_with("test_movie.mp4", 10.5)
+        mock_builder.upsert_position_action.assert_called_once_with("test_movie.mp4", 10.5, 7200)
         mock_builder.set_position_action.assert_not_called()
 
     def test_different_media_clears_previous_state(self, mock_builder, mock_status_ok):

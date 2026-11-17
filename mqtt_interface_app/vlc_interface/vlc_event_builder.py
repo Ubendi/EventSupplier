@@ -35,14 +35,14 @@ class VLCEventBuilder:
     
     def set_position_action(self, media_name):
         pos = get_position_of_media(media_name)
-        if not pos:
+        if pos is None:
             action = self.create_action("info", {"info_message" : f"{media_name} is new, starting from 0"})
         else:
             action = self.create_action("set_position", {"media_name" : media_name, "position" : pos*100})
         return action
     
-    def upsert_position_action(self, media_name, pos):
-        action = self.create_action("upsert_position", {"media_name" : media_name, "position" : pos})
+    def upsert_position_action(self, media_name, pos, length=None):
+        action = self.create_action("upsert_position", {"media_name" : media_name, "position" : pos, "length" : length})
         return action
     
     def create_error_action(self, error_message):

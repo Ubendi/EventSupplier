@@ -9,27 +9,30 @@ import logging
 logger = logging.getLogger("vlc_interface.vlc_main")
 
 
-async def execute_action(topic: str, action, emitter, mqtt_interface: MQTTInterface):
+async def execute_action(topic: str, action, emitter, mqtt_interface: MQTTInterface, state=None):
     """
     Execute a VLC action and publish result to MQTT.
-    
-    This is a standalone, testable function that handles:
-    1. Sending action via VLC emitter
-    2. Publishing result to MQTT
-    3. Logging the operation
-    
+
     Args:
         topic: MQTT topic to publish to
         action: VLC action to execute
         emitter: VLCEmitter instance
         mqtt_interface: MQTTInterface instance
-    
+        state: optional AppState for the web UI event feed
+
     Returns:
         The MQTT publish result object
     """
     vlc_result = emitter.send(action)
     mqtt_result = await mqtt_interface.publish_event(topic, vlc_result.message)
     logger.info(f"Message sent to {topic} with response: {mqtt_result.status}")
+    if state is not None:
+        level = "info"
+        if action and action.get("action") == "error":
+            level = "error"
+        elif vlc_result.status != "ok":
+            level = "warning"
+        state.add_event(topic, vlc_result.message, level=level)
     return mqtt_result
 
 
@@ -53,7 +56,8 @@ def process_ok_status(
     last_media: str,
     builder,
     emitter,
-    mqtt_interface: MQTTInterface
+    mqtt_interface: MQTTInterface,
+    subtitle_language: str = "English"
 ) -> tuple:
     """
     Process VLC OK status and return updated state with actions to execute.
@@ -83,12 +87,12 @@ def process_ok_status(
         # New media detected - trigger setup actions
         logger.info(f"Loaded new media: {current_media}")
         actions.append(("vlc_update", builder.set_position_action(current_media)))
-        actions.append(("vlc_update", builder.select_subtitle_stream_action("English")))
+        actions.append(("vlc_update", builder.select_subtitle_stream_action(subtitle_language)))
         actions.append(("vlc_update", builder.select_audio_stream_action()))
         return current_media, actions
     else:
         # Existing media - just update position
-        actions.append(("vlc_positions", builder.upsert_position_action(current_media, payload["position"])))
+        actions.append(("vlc_positions", builder.upsert_position_action(current_media, payload["position"], payload.get("length"))))
         return last_media, actions
 
 
@@ -154,21 +158,24 @@ def process_error_status(
     return new_last_media, new_last_error, new_retry_count, new_is_retrying, error_action
 
 
-async def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_interface: MQTTInterface):
+async def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_interface: MQTTInterface, state=None, settings_store=None):
     """
     Main VLC watcher loop.
-    
+
     Continuously monitors VLC status and publishes events to MQTT:
     - When media changes: Sets position, subtitle (English), and audio
     - When media plays: Updates position periodically
     - On connection errors: Retries up to max_retries times
     - On persistent errors: Publishes to vlc_errors topic
-    
+
     Args:
         vlc_host: VLC HTTP interface host
         vlc_port: VLC HTTP interface port
         vlc_key: VLC HTTP interface password/key
         mqtt_interface: MQTTInterface instance for publishing events
+        state: optional AppState shared with the web UI
+        settings_store: optional SettingsStore; watch interval and subtitle
+            language are read from it each loop so changes apply live
     """
     # Initialize VLC components
     listener = VLCListener(vlc_host, vlc_port, vlc_key)
@@ -185,16 +192,23 @@ async def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_inter
     # Main watcher loop
     while True:
         try:
+            if state is not None:
+                state.update_watcher(loop_count=state.watcher.loop_count + 1)
+
             status = listener.get_status()
+
+            if state is not None:
+                state.update_watcher(vlc_status=status.status)
 
             if status.status == "ok":
                 # VLC is running - process OK status
                 last_media, actions = process_ok_status(
-                    status, last_media, builder, emitter, mqtt_interface
+                    status, last_media, builder, emitter, mqtt_interface,
+                    subtitle_language=settings_store.get("subtitle_language") if settings_store else "English"
                 )
                 # Execute all generated actions
                 for topic, action in actions:
-                    await execute_action(topic, action, emitter, mqtt_interface)
+                    await execute_action(topic, action, emitter, mqtt_interface, state)
                 last_error = None
 
             else:
@@ -205,7 +219,7 @@ async def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_inter
                 # Execute error action if present
                 if error_action:
                     topic, action = error_action
-                    await execute_action(topic, action, emitter, mqtt_interface)
+                    await execute_action(topic, action, emitter, mqtt_interface, state)
 
         except Exception as e:
             # Catch any unexpected errors in listener
@@ -213,4 +227,16 @@ async def run_vlc_watcher(vlc_host: str, vlc_port: int, vlc_key: str, mqtt_inter
             await asyncio.sleep(5)
             continue
 
-        await asyncio.sleep(2)
+        if state is not None:
+            state.update_watcher(
+                last_media=last_media,
+                last_error=last_error,
+                retry_count=retry_count,
+                is_retrying=is_retrying,
+            )
+
+        if settings_store is not None:
+            interval = settings_store.get("watch_interval")
+        else:
+            interval = 2
+        await asyncio.sleep(interval)

@@ -4,5 +4,6 @@ docker run -d `
     --name mqtt_interface_app `
     --restart=always `
     --env-file .\env\laptop.env `
-    -v ${PWD}/data/positions.json:/app/vlc_interface/positions.json `
+    -p 8081:8081 `
+    -v ${PWD}/data:/app/data `
     mqtt_interface_app

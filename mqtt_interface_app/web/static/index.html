@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EventSupplier</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="brand">EventSupplier</h1>
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="positions">Positions</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </nav>
+    <div class="health" id="health-indicator" title="API reachability">
+      <span class="dot" id="health-dot"></span>
+      <span id="health-text">connecting</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Dashboard -->
+    <section id="tab-dashboard" class="tab-panel active">
+      <div class="grid-2">
+        <div class="card" id="watcher-card">
+          <h2>Watcher</h2>
+          <dl class="kv">
+            <dt>Watcher state</dt><dd id="w-vlc-status">-</dd>
+            <dt>Current media</dt><dd id="w-last-media">-</dd>
+            <dt>Last error</dt><dd id="w-last-error">-</dd>
+            <dt>Retrying</dt><dd id="w-retrying">-</dd>
+            <dt>Retry count</dt><dd id="w-retry-count">-</dd>
+            <dt>Loops</dt><dd id="w-loops">-</dd>
+            <dt>Uptime</dt><dd id="w-uptime">-</dd>
+          </dl>
+        </div>
+        <div class="card" id="media-card">
+          <h2>Media</h2>
+          <p class="media-name" id="m-filename">No media</p>
+          <div class="progress">
+            <div class="progress-label"><span id="m-time">-</span> / <span id="m-length">-</span></div>
+            <div class="progress-bar"><div class="progress-fill" id="m-progress"></div></div>
+          </div>
+          <p class="muted" id="m-state">state: -</p>
+          <div class="controls">
+            <button id="btn-play" title="Play">Play</button>
+            <button id="btn-pause" title="Pause / resume">Pause</button>
+            <button id="btn-stop" title="Stop">Stop</button>
+            <div class="volume">
+              <label for="volume-range">Volume</label>
+              <input type="range" id="volume-range" min="0" max="100" value="50">
+              <span id="volume-value">-</span>
+            </div>
+          </div>
+          <form id="seek-form" class="seek">
+            <label for="seek-input">Seek to</label>
+            <input type="number" id="seek-input" min="0" max="100" step="0.1"> %
+            <button type="submit">Seek</button>
+          </form>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Event feed</h2>
+        <div class="events" id="event-feed">
+          <p class="muted">No events yet</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Positions -->
+    <section id="tab-positions" class="tab-panel">
+      <div class="card">
+        <div class="toolbar">
+          <input type="search" id="positions-search" placeholder="Filter by name...">
+          <span class="muted" id="positions-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="positions-table">
+            <thead>
+              <tr>
+                <th>Media</th>
+                <th>Progress</th>
+                <th>Position</th>
+                <th>Length</th>
+                <th>Remaining</th>
+                <th>Last watched</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="positions-body">
+              <tr><td colspan="8" class="muted">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section id="tab-settings" class="tab-panel">
+      <div class="card">
+        <h2>Settings</h2>
+        <p class="muted" id="settings-hint">Values marked * require a restart after saving.</p>
+        <form id="settings-form">
+          <div id="settings-fields"></div>
+          <button type="submit">Save settings</button>
+        </form>
+        <p id="settings-result" class="result"></p>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/js/app.js"></script>
+</body>
+</html>
