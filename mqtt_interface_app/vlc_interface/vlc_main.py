@@ -6,6 +6,8 @@ from mqtt.mqtt_interface import MQTTInterface
 import asyncio
 import logging
 
+from .subtitle_delay_manager import get_delay
+
 logger = logging.getLogger("vlc_interface.vlc_main")
 
 
@@ -89,6 +91,11 @@ def process_ok_status(
         actions.append(("vlc_update", builder.set_position_action(current_media)))
         actions.append(("vlc_update", builder.select_subtitle_stream_action(subtitle_language)))
         actions.append(("vlc_update", builder.select_audio_stream_action()))
+        # Re-apply a previously saved subtitle delay so all clients (and VLC
+        # restarts) converge on the stored, shared offset
+        saved_delay = get_delay(current_media)
+        if saved_delay:
+            actions.append(("vlc_update", builder.set_subtitle_delay_action(saved_delay)))
         return current_media, actions
     else:
         # Existing media - just update position

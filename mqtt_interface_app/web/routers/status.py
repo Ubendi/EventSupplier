@@ -3,6 +3,8 @@ import asyncio
 
 from fastapi import APIRouter, Request
 
+from vlc_interface import subtitle_delay_manager
+
 router = APIRouter(prefix="/api/v1", tags=["status"])
 
 
@@ -21,10 +23,11 @@ def _serialize_status(payload: dict | None) -> dict:
         for key, info in category.items()
         if info.get("Type") in ("Video", "Audio", "Subtitle")
     ]
+    media_name = meta.get("filename")
     return {
         "state": payload.get("state"),
         "media": {
-            "filename": meta.get("filename"),
+            "filename": media_name,
             "title": meta.get("title"),
         },
         "position": payload.get("position"),
@@ -32,6 +35,7 @@ def _serialize_status(payload: dict | None) -> dict:
         "length": payload.get("length"),
         "volume": payload.get("volume"),
         "rate": payload.get("rate"),
+        "subtitle_delay": subtitle_delay_manager.get_delay(media_name) if media_name else None,
         "streams": streams,
     }
 

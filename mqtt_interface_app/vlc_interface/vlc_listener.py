@@ -31,3 +31,15 @@ class VLCListener(VLCConnectionBase):
                 return StatusResult("vlc_not_running", None, None, "VLC not running")
             else:
                 return StatusResult("connection_error", None, None, str(e))
+
+    def get_playlist(self) -> StatusResult:
+        try:
+            response = requests.get(self.playlist_api_url, auth=self.vlc_auth, timeout=2)
+            response.encoding = 'utf-8'
+            if response.status_code == 200:
+                return StatusResult("ok", 200, response.json(), None)
+            return StatusResult("http_error", response.status_code, None, f"HTTP {response.status_code}")
+        except RequestException as e:
+            if "actively refused" in str(e) or "Failed to establish a new connection" in str(e) or "Max retries exceeded" in str(e):
+                return StatusResult("vlc_not_running", None, None, "VLC not running")
+            return StatusResult("connection_error", None, None, str(e))

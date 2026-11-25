@@ -62,6 +62,20 @@ class VLCEmitter(VLCConnectionBase):
                     id = action["payload"]["id"]
                     self._set_audio_stream(id)
                     message = f"Audio track {id} set"
+                case "play_file":
+                    uri = action["payload"]["uri"]
+                    name = action["payload"].get("name", uri)
+                    self._play_file(uri)
+                    message = f"Playing {name}"
+                case "load_subtitle":
+                    uri = action["payload"]["uri"]
+                    name = action["payload"].get("name", uri)
+                    self._add_subtitle_file(uri)
+                    message = f"Loaded subtitle {name}"
+                case "set_subtitle_delay":
+                    offset = action["payload"]["offset"]
+                    self._set_subtitle_delay(offset)
+                    message = f"Subtitle delay set to {offset:+.1f}s"
                 case "error":
                     message = action["payload"]["error_message"]
                 case "info":
@@ -100,6 +114,22 @@ class VLCEmitter(VLCConnectionBase):
     # absolute on the 0-512 scale
     def _set_volume(self, volume: int):
         request = f"{self.command_api_url}volume&val={volume}%25"
+        requests.get(request, auth=self.vlc_auth)
+
+    # in_play replaces the current playlist item with the given MRL
+    # The builder passes an as_uri() path, which is already percent-encoded
+    def _play_file(self, uri: str):
+        request = f"{self.command_api_url}in_play&val={uri}"
+        requests.get(request, auth=self.vlc_auth)
+
+    # addsubtitle attaches an external subtitle file to the current input
+    def _add_subtitle_file(self, uri: str):
+        request = f"{self.command_api_url}addsubtitle&val={uri}"
+        requests.get(request, auth=self.vlc_auth)
+
+    # subdelay sets the absolute subtitle offset in seconds (can be negative)
+    def _set_subtitle_delay(self, seconds: float):
+        request = f"{self.command_api_url}subdelay&val={seconds}"
         requests.get(request, auth=self.vlc_auth)
 
     # IO methods

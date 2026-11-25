@@ -12,6 +12,8 @@ const state = {
   restartRequiredKeys: [],
   settings: {},
   volumeInitialized: false,
+  subDelay: 0,
+  subDelayStep: 0.5,
 };
 
 // ---------------------------------------------------------------------------
@@ -149,6 +151,15 @@ function renderMedia(vlc) {
   } else if (!state.volumeInitialized) {
     $("volume-value").textContent = "-";
   }
+
+  if (vlc.subtitle_delay != null) {
+    // Server value wins: keeps phones/laptops/tabs in sync
+    state.subDelay = vlc.subtitle_delay;
+    renderSubDelay();
+  } else if (media.filename == null) {
+    state.subDelay = 0;
+    renderSubDelay();
+  }
 }
 
 async function refreshEvents() {
@@ -182,6 +193,89 @@ async function vlcCommand(command, body) {
   } catch (err) {
     toast(err.message, true);
   }
+}
+
+// Subtitle delay: the server keeps the offset per media (VLC's HTTP status
+// API cannot read it back), so every device converges on the same value; the
+// UI sends the new absolute offset on each click.
+function renderSubDelay() {
+  const v = state.subDelay;
+  $("sub-delay-value").textContent = `${v > 0 ? "+" : ""}${v.toFixed(1)}s`;
+}
+
+async function changeSubDelay(delta) {
+  const next = Math.round((state.subDelay + delta) * 10) / 10;
+  renderSubDelay();
+  try {
+    const result = await api("/api/v1/vlc/subtitle_delay", {
+      method: "POST",
+      body: JSON.stringify({ offset: next }),
+    });
+    if (typeof result.offset === "number") {
+      state.subDelay = result.offset;
+      renderSubDelay();
+    }
+    toast(result.message || result.status, result.status !== "ok");
+    refreshDashboard();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// File browser
+// ---------------------------------------------------------------------------
+
+async function loadFileBrowser(path) {
+  const list = $("file-list");
+  list.innerHTML = '<p class="muted">Loading...</p>';
+  try {
+    const data = await api(`/api/v1/files/browser${path ? `?path=${encodeURIComponent(path)}` : ""}`);
+    $("file-path-label").textContent = data.path || data.message || "-";
+    $("file-path-label").title = data.path || "";
+    $("file-path-label").dataset.path = data.path || "";
+    $("file-up").disabled = !data.parent;
+    state.fileParent = data.parent;
+
+    if (!data.path && data.message) {
+      list.innerHTML = `<p class="muted">${escapeHtml(data.message)}</p>`;
+      return;
+    }
+
+    const rows = [];
+    for (const dir of data.directories) {
+      rows.push(`
+        <div class="file-row dir">
+          <span class="file-name" data-dir="${escapeHtml(dir.path)}" title="${escapeHtml(dir.path)}">&#128193; ${escapeHtml(dir.name)}</span>
+        </div>`);
+    }
+    if (data.files.length === 0 && data.directories.length === 0) {
+      rows.push('<div class="file-row"><span class="muted">Empty folder</span></div>');
+    }
+    for (const file of data.files) {
+      const action = file.type === "video"
+        ? `<button data-play="${escapeHtml(file.path)}">Play</button>`
+        : `<button data-sub="${escapeHtml(file.path)}">Load subtitle</button>`;
+      const icon = file.type === "video" ? "&#127909;" : "&#128172;";
+      rows.push(`
+        <div class="file-row">
+          <span class="file-name" title="${escapeHtml(file.path)}">${icon} ${escapeHtml(file.name)}</span>
+          ${action}
+        </div>`);
+    }
+    list.innerHTML = rows.join("");
+  } catch (err) {
+    list.innerHTML = `<p class="muted">Browse failed: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function openFileBrowser() {
+  $("file-modal").classList.remove("hidden");
+  loadFileBrowser(); // default: currently playing media's folder / media root
+}
+
+function closeFileBrowser() {
+  $("file-modal").classList.add("hidden");
 }
 
 // ---------------------------------------------------------------------------
@@ -398,6 +492,8 @@ const SETTING_LABELS = {
   web_port: "Web port",
   ncore_username: "nCore username",
   ncore_download_dir: "nCore download folder",
+  media_root: "Media root folder (file browser)",
+  media_host_path: "Media folder on the host (Docker path mapping)",
 };
 
 // Managed elsewhere: nCore password comes from the env file or the nCore tab
@@ -473,6 +569,8 @@ async function initPollInterval() {
 document.addEventListener("DOMContentLoaded", async () => {
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => switchTab(t.dataset.tab)));
 
+  renderSubDelay();
+
   $("btn-play").addEventListener("click", () => vlcCommand("play"));
   $("btn-pause").addEventListener("click", () => vlcCommand("pause"));
   $("btn-stop").addEventListener("click", () => vlcCommand("stop"));
@@ -488,6 +586,45 @@ document.addEventListener("DOMContentLoaded", async () => {
     e.preventDefault();
     const value = parseFloat($("seek-input").value);
     if (!Number.isNaN(value)) vlcCommand("seek", { position: value });
+  });
+
+  // Subtitle delay controls
+  $("btn-sub-delay-down").addEventListener("click", () => changeSubDelay(-state.subDelayStep));
+  $("btn-sub-delay-up").addEventListener("click", () => changeSubDelay(state.subDelayStep));
+  $("btn-sub-delay-reset").addEventListener("click", () => {
+    state.subDelay = 0;
+    changeSubDelay(0);
+  });
+
+  // File browser modal
+  $("btn-open-file").addEventListener("click", openFileBrowser);
+  $("file-modal-close").addEventListener("click", closeFileBrowser);
+  $("file-modal").addEventListener("click", (e) => {
+    if (e.target === $("file-modal")) closeFileBrowser();
+  });
+  $("file-up").addEventListener("click", () => {
+    if (state.fileParent) loadFileBrowser(state.fileParent);
+  });
+  $("file-refresh").addEventListener("click", () => {
+    loadFileBrowser($("file-path-label").dataset.path || "");
+  });
+  $("file-list").addEventListener("click", (e) => {
+    const dirName = e.target.closest("[data-dir]");
+    if (dirName) {
+      loadFileBrowser(dirName.dataset.dir);
+      return;
+    }
+    const playBtn = e.target.closest("[data-play]");
+    if (playBtn) {
+      closeFileBrowser();
+      vlcCommand("play_file", { path: playBtn.dataset.play });
+      return;
+    }
+    const subBtn = e.target.closest("[data-sub]");
+    if (subBtn) {
+      closeFileBrowser();
+      vlcCommand("load_subtitle", { path: subBtn.dataset.sub });
+    }
   });
 
   $("positions-search").addEventListener("input", () => {

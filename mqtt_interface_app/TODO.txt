@@ -1,12 +1,6 @@
 Ideas:
 - async implement
 - MQTT subscribing
-- Retry logic to publishing
 - Seprate position manager / storage module with Postgres
-- Implement real logging instead of print()
 - Mobile app to send and receive events
 - IBKR API??????????
-- Ncore API?????????
-
-TO FIX:
-Occasional loss of connection to VLC, no retries ?????????? - maybe docker issue?

@@ -30,6 +30,8 @@ SETTING_TYPES = {
     "ncore_username": str,
     "ncore_password": str,
     "ncore_download_dir": str,
+    "media_root": str,
+    "media_host_path": str,
     "qbt_username": str,
     "qbt_password": str,
 }
@@ -46,6 +48,10 @@ DEFAULTS = {
     "ncore_username": "",
     "ncore_password": "",
     "ncore_download_dir": str(APP_ROOT / "data" / "torrents"),
+    "media_root": str(APP_ROOT),
+    # Host-side twin of media_root; used when the app runs in Docker and the
+    # host media folder is mounted at media_root (empty = no mapping)
+    "media_host_path": "",
     "qbt_username": "",
     "qbt_password": "",
 }

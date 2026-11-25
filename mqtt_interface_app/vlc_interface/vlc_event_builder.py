@@ -1,5 +1,6 @@
 import time
 from helper.string_utils import normalize
+from helper.path_mapping import path_to_uri, file_name as _file_name
 from .positions_manager import get_position_of_media, position_changed
 
 class VLCEventBuilder:
@@ -52,6 +53,21 @@ class VLCEventBuilder:
     def create_error_action(self, error_message):
         action = self.create_action("error", {"error_message" : error_message})
         return action
+
+    # host_path may be a Windows path (D:\Media\...) while this code runs in
+    # the Linux container, so use the cross-platform URI/name helpers
+    def play_file_action(self, host_path: str):
+        uri = path_to_uri(host_path)
+        name = _file_name(host_path)
+        return self.create_action("play_file", {"uri" : uri, "name" : name, "path" : str(host_path)})
+
+    def load_subtitle_action(self, host_path: str):
+        uri = path_to_uri(host_path)
+        name = _file_name(host_path)
+        return self.create_action("load_subtitle", {"uri" : uri, "name" : name, "path" : str(host_path)})
+
+    def set_subtitle_delay_action(self, offset: float):
+        return self.create_action("set_subtitle_delay", {"offset" : offset})
 
     # Internal functions
     def _get_streams(self, type: str, language: str | None = "") -> list[tuple[str,dict]] | None:
